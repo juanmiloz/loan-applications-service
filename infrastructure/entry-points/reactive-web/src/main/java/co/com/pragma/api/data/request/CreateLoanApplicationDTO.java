@@ -4,6 +4,6 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record CreateLoanApplicationDTO(
-        BigDecimal amount, Integer termMonths, String email, UUID statusId, UUID loanTypeId
+        BigDecimal amount, Integer termMonths, String email, UUID loanTypeId
 ) {
 }

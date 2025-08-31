@@ -30,7 +30,7 @@ public final class ValidationHelper {
 
     public static void requiredRegex(String value, Pattern pattern, ErrorCode errorCode, Object... args) {
         if (value == null || !pattern.matcher(value).matches()) {
-            throw DomainExceptionFactory.exceptionOf(errorCode, args);
+            throw DomainExceptionFactory.exceptionOf(errorCode, value);
         }
     }
 

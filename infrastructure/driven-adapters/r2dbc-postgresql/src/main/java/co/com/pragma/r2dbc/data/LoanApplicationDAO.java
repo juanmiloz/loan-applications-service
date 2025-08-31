@@ -30,13 +30,13 @@ public class LoanApplicationDAO {
     private Integer termMonths;
 
     @Column("email")
-    private String email;        // citext -> String
+    private String email;
 
     @Column("status_id")
-    private UUID statusId;       // FK -> statuses.status_id
+    private UUID statusId;
 
     @Column("loan_type_id")
-    private UUID loanTypeId;     // FK -> loan_types.loan_type_id
+    private UUID loanTypeId;
 
     @Column("created_at")
     private OffsetDateTime createdAt;

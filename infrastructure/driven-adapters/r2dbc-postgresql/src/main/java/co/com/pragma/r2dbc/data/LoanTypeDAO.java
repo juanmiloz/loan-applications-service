@@ -15,7 +15,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(schema = "loan", name = "loan_type")
+@Table(schema = "loan", name = "loan_types")
 public class LoanTypeDAO {
 
     @Id
