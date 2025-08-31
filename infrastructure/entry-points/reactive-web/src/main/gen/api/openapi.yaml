@@ -1,0 +1,197 @@
+openapi: 3.0.3
+info:
+  description: API to create loan applications.
+  title: Loan Application API
+  version: 1.0.0
+servers:
+- url: https://api.your-domain.com
+paths:
+  /api/v1/loan-application:
+    post:
+      operationId: createLoanApplication
+      requestBody:
+        content:
+          application/json:
+            examples:
+              validSample:
+                value:
+                  amount: 1500000.5
+                  termMonths: 24
+                  email: user@example.com
+                  loanTypeId: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationDTO'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              examples:
+                created:
+                  value:
+                    applicationId: 8c7b2a9a-1f3d-4b6a-9d0e-1a2b3c4d5e6f
+                    amount: 1500000.5
+                    termMonths: 24
+                    email: user@example.com
+                    statusId: 3b2a1c47-5d60-4eab-9f2d-7c6b5a4e3d21
+                    loanTypeId: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+                    createdAt: 2025-08-28T14:12:33Z
+              schema:
+                $ref: '#/components/schemas/LoanApplicationDTO'
+          description: Created
+          headers:
+            Location:
+              description: URL of the created resource
+              explode: false
+              schema:
+                example: /api/v1/loan-application/8c7b2a9a-1f3d-4b6a-9d0e-1a2b3c4d5e6f
+                type: string
+              style: simple
+        "400":
+          content:
+            application/json:
+              examples:
+                validationError:
+                  value:
+                    timestamp: 2025-08-28T14:12:33Z
+                    status: 400
+                    error: Bad Request
+                    message: termMonths must be greater than 0
+                    path: /api/v1/loan-application
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request (validation error)
+        "409":
+          content:
+            application/json:
+              examples:
+                conflict:
+                  value:
+                    timestamp: 2025-08-28T14:12:33Z
+                    status: 409
+                    error: Conflict
+                    message: There is already an active application for that email
+                    path: /api/v1/loan-application
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "Conflict (e.g., duplicate request)"
+        "500":
+          content:
+            application/json:
+              examples:
+                internal:
+                  value:
+                    timestamp: 2025-08-28T14:12:33Z
+                    status: 500
+                    error: Internal Server Error
+                    message: An unexpected error occurred
+                    path: /api/v1/loan-application
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Create a loan application
+      tags:
+      - Loan Applications
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+components:
+  schemas:
+    CreateLoanApplicationDTO:
+      example:
+        amount: 1500000.5
+        termMonths: 24
+        email: user@example.com
+        loanTypeId: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+      properties:
+        amount:
+          description: Requested amount.
+          example: 1500000.5
+          format: double
+          type: number
+        termMonths:
+          description: Term in months.
+          example: 24
+          minimum: 1
+          type: integer
+        email:
+          example: user@example.com
+          format: email
+          type: string
+        loanTypeId:
+          example: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+          format: uuid
+          type: string
+      required:
+      - amount
+      - email
+      - loanTypeId
+      - termMonths
+      type: object
+    LoanApplicationDTO:
+      example:
+        createdAt: 2025-08-28T14:12:33Z
+        amount: 1500000.5
+        statusId: 3b2a1c47-5d60-4eab-9f2d-7c6b5a4e3d21
+        termMonths: 24
+        applicationId: 8c7b2a9a-1f3d-4b6a-9d0e-1a2b3c4d5e6f
+        email: user@example.com
+        loanTypeId: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+      properties:
+        applicationId:
+          example: 8c7b2a9a-1f3d-4b6a-9d0e-1a2b3c4d5e6f
+          format: uuid
+          type: string
+        amount:
+          example: 1500000.5
+          format: double
+          type: number
+        termMonths:
+          example: 24
+          type: integer
+        email:
+          example: user@example.com
+          format: email
+          type: string
+        statusId:
+          example: 3b2a1c47-5d60-4eab-9f2d-7c6b5a4e3d21
+          format: uuid
+          type: string
+        loanTypeId:
+          example: 6f1a2c26-0f42-47fe-9a0f-3a3a2f7f9c7b
+          format: uuid
+          type: string
+        createdAt:
+          example: 2025-08-28T14:12:33Z
+          format: date-time
+          type: string
+      required:
+      - amount
+      - applicationId
+      - createdAt
+      - email
+      - loanTypeId
+      - statusId
+      - termMonths
+      type: object
+    Error:
+      example:
+        path: path
+        error: error
+        message: message
+        timestamp: 2000-01-23T04:56:07.000+00:00
+        status: 0
+      properties:
+        timestamp:
+          format: date-time
+          type: string
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+      type: object
+
