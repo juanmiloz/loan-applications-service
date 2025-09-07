@@ -3,9 +3,8 @@ package co.com.pragma.usecase.loanapplicationcrud;
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.error.LoanApplicationErrorCode;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
-import co.com.pragma.model.loanapplication.gateways.UserClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
-import co.com.pragma.model.shared.gateway.AuthGateway;
+import co.com.pragma.model.shared.exception.DomainExceptionFactory;
 import co.com.pragma.model.shared.gateway.TransactionalGateway;
 import co.com.pragma.model.status.gateways.StatusRepository;
 import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
@@ -18,43 +17,25 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.regex.Pattern;
 
-import static co.com.pragma.model.shared.exception.DomainExceptionFactory.exceptionOf;
-
 @RequiredArgsConstructor
 public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInterface {
 
-    private static final Pattern EMAIL_RX = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
-    private static final String DEFAULT_LOAN_APPLICATION_NAME = "PENDING";
+    private final static Pattern EMAIL_RX = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+    private final static String DEFAULT_LOAN_APPLICATION_NAME = "PENDING";
 
-    private final TransactionalGateway transactionalGateway;
     private final LoanApplicationRepository loanApplicationRepository;
     private final LoanTypeRepository loanTypeRepository;
     private final StatusRepository statusRepository;
-    private final UserClient userClient;
-    private final AuthGateway authGateway;
+    private final TransactionalGateway transactionalGateway;
 
     @Override
     public Mono<LoanApplication> createLoanApplication(LoanApplication loanApplication) {
-        return authGateway.currentUserId().
-                switchIfEmpty(Mono.error(exceptionOf(LoanApplicationErrorCode.AUTHORIZATION_FAILED)))
-                .flatMap(requesterUserId ->
-                        transactionalGateway.execute(
-                                ensureOwnerOrDeny(loanApplication.getEmail(), requesterUserId)
-                                        .then(validateLoanApplicationFields(loanApplication))
-                                        .flatMap(this::attachPendingStatus)
-                                        .map(this::stampCreatedAt)
-                                        .flatMap(loanApplicationRepository::createLoanApplication)
-                        )
-                );
-    }
-
-    private Mono<Void> ensureOwnerOrDeny(String email, String requesterUserId) {
-        return userClient.getClientByEmail(email)
-                .map(userDTO -> requesterUserId != null && requesterUserId.equals(String.valueOf(userDTO.userId())))
-                .defaultIfEmpty(false)
-                .flatMap(matches -> matches
-                        ? Mono.<Void>empty()
-                        : Mono.error(exceptionOf(LoanApplicationErrorCode.AUTHORIZATION_FAILED)));
+        return transactionalGateway.execute(
+                validateLoanApplicationFields(loanApplication)
+                        .flatMap(this::attachPendingStatus)
+                        .map(this::stampCreatedAt)
+                        .flatMap(loanApplicationRepository::createLoanApplication)
+        );
     }
 
     private Mono<LoanApplication> validateLoanApplicationFields(LoanApplication loanApplication) {
@@ -86,7 +67,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInt
 
     private void validateAmountInRange(BigDecimal amount, BigDecimal minAmount, BigDecimal maxAmount) {
         if (amount.compareTo(minAmount) < 0 || amount.compareTo(maxAmount) > 0) {
-            throw exceptionOf(LoanApplicationErrorCode.INVALID_AMOUNT_RANGE, amount, minAmount, maxAmount);
+            throw DomainExceptionFactory.exceptionOf(LoanApplicationErrorCode.INVALID_AMOUNT_RANGE, amount, minAmount, maxAmount);
         }
     }
 

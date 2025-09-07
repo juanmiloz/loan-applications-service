@@ -20,44 +20,14 @@ management:
     health:
       probes:
         enabled: true
-  health:
-    circuitbreakers:
-      enabled: true
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
+
 adapters:
   r2dbc:
-    host: "localhost"
+    host: localhost
     port: 5433
-    database: "applications_db"
-    schema: "public"
-    username: "application_be_user"
-    password: "sTRuDYSPEADrECTfuLTarGoNdIFIch"
-jwt:
-  secret: "2eba44ac3591ab2ac947956dc24de35a0b6a2d32298d2f12007a8fd939285c97"
-  expiration: "1h"
-adapter:
-  restconsumer:
-    timeout: 5000
-    url: "http://localhost:8001"
-resilience4j:
-  circuitbreaker:
-    instances:
-      testGet:
-        registerHealthIndicator: true
-        failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: "2s"
-        permittedNumberOfCallsInHalfOpenState: 3
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 10
-        waitDurationInOpenState: "10s"
-      testPost:
-        registerHealthIndicator: true
-        failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: "2s"
-        permittedNumberOfCallsInHalfOpenState: 3
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 10
-        waitDurationInOpenState: "10s"
+    database: applications_db
+    schema: public
+    username: application_be_user
+    password: sTRuDYSPEADrECTfuLTarGoNdIFIch

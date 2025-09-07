@@ -8,7 +8,6 @@ import co.com.pragma.usecase.loanapplicationcrud.LoanApplicationCrudUseCase;
 import co.com.pragma.usecase.loanapplicationcrud.interfaces.LoanApplicationCrudUseCaseInterface;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -24,7 +23,7 @@ public class ApplicationHandler implements ApplicationHandlerAPI {
     private final LoanApplicationCrudUseCaseInterface useCase;
     private final LoanApplicationMapper mapper;
 
-    @PreAuthorize("hasAuthority('CUSTOMER')")
+
     @Override
     public Mono<ServerResponse> createLoanApplication(ServerRequest request) {
         return request.bodyToMono(CreateLoanApplicationDTO.class)
