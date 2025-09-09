@@ -8,4 +8,6 @@ public interface ApplicationHandlerAPI {
 
     Mono<ServerResponse> createLoanApplication(ServerRequest request);
 
+    Mono<ServerResponse> listReviewableLoanApplications(ServerRequest request);
+
 }

@@ -3,9 +3,9 @@ package co.com.pragma.api;
 import co.com.pragma.api.data.request.CreateLoanApplicationDTO;
 import co.com.pragma.api.interfaces.ApplicationHandlerAPI;
 import co.com.pragma.api.mapper.LoanApplicationMapper;
-import co.com.pragma.model.loanapplication.LoanApplication;
-import co.com.pragma.usecase.loanapplicationcrud.LoanApplicationCrudUseCase;
-import co.com.pragma.usecase.loanapplicationcrud.interfaces.LoanApplicationCrudUseCaseInterface;
+import co.com.pragma.model.shared.pagination.PageQuery;
+import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseInterface;
+import co.com.pragma.usecase.reviewableloanapplications.contract.ReviewableLoanApplicationUseCaseContract;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,6 +22,7 @@ import java.net.URI;
 public class ApplicationHandler implements ApplicationHandlerAPI {
 
     private final LoanApplicationCrudUseCaseInterface useCase;
+    private final ReviewableLoanApplicationUseCaseContract reviewableUseCase;
     private final LoanApplicationMapper mapper;
 
     @PreAuthorize("hasAuthority('CUSTOMER')")
@@ -37,5 +38,15 @@ public class ApplicationHandler implements ApplicationHandlerAPI {
                 .map(mapper::toDTO)
                 .flatMap(res -> ServerResponse.created(URI.create("/api/v1/loan-application/" + res.applicationId())).bodyValue(res))
                 .doOnError(ex -> log.error("createLoanApplication:error msg={}", ex.getMessage(), ex));
+    }
+
+    @Override
+    public Mono<ServerResponse> listReviewableLoanApplications(ServerRequest request) {
+        int page = Integer.parseInt(request.queryParam("page").orElse("0"));
+        int size = Math.min(Math.max(Integer.parseInt(request.queryParam("size").orElse("20")), 1), 200);
+        PageQuery pageQuery = new PageQuery(page, size);
+
+        return reviewableUseCase.listReviewableLoanApplications(pageQuery)
+                .flatMap(res -> ServerResponse.ok().bodyValue(res));
     }
 }
