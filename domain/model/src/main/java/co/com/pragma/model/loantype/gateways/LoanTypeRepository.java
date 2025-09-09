@@ -9,4 +9,6 @@ public interface LoanTypeRepository {
 
     Mono<LoanType> findById(UUID id);
 
+    Mono<LoanType> findByName(String loanApplicationTypeName);
+
 }

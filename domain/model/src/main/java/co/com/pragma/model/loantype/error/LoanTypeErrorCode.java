@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum LoanTypeErrorCode implements ErrorCode {
 
-    LOAN_TYPE_NOT_FOUND("LNT_001", 404, "Loan type not found with id {0}");
+    LOAN_TYPE_NOT_FOUND("LNT_001", 404, "Loan type not found with id {0}"),
+    LOAN_TYPE_NOT_FOUND_BY_NAME("LNT_001", 404, "Loan type not found with name {0}");
 
     private final String appCode;
     private final int httpCode;

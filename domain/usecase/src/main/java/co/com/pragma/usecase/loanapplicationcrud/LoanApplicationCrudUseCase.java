@@ -9,7 +9,7 @@ import co.com.pragma.model.shared.gateway.AuthGateway;
 import co.com.pragma.model.shared.gateway.TransactionalGateway;
 import co.com.pragma.model.status.gateways.StatusRepository;
 import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
-import co.com.pragma.usecase.loanapplicationcrud.interfaces.LoanApplicationCrudUseCaseInterface;
+import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseInterface;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
