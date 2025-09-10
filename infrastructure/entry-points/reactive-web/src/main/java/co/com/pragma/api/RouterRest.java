@@ -1,5 +1,6 @@
 package co.com.pragma.api;
 
+import co.com.pragma.api.interfaces.ApplicationHandlerAPI;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.server.RouterFunction;
@@ -12,7 +13,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @Configuration
 public class RouterRest {
     @Bean
-    public RouterFunction<ServerResponse> routerFunction(ApplicationHandler handler) {
+    public RouterFunction<ServerResponse> routerFunction(ApplicationHandlerAPI handler) {
         return route(POST("/api/v1/applications"), handler::createLoanApplication)
                 .andRoute(GET("/api/v1/applications"), handler::listReviewableLoanApplications);
 
