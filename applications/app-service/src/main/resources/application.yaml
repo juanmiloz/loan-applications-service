@@ -27,19 +27,19 @@ cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 adapters:
   r2dbc:
-    host: "localhost"
-    port: 5433
-    database: "applications_db"
-    schema: "public"
-    username: "application_be_user"
-    password: "sTRuDYSPEADrECTfuLTarGoNdIFIch"
+    host: ${SPRING_DATASOURCE_HOST}
+    port: ${SPRING_DATASOURCE_PORT}
+    database: ${SPRING_DATASOURCE_DATABASE}
+    schema: ${SPRING_DATASOURCE_SCHEMA}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 jwt:
-  secret: "2eba44ac3591ab2ac947956dc24de35a0b6a2d32298d2f12007a8fd939285c97"
-  expiration: "1h"
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION}
 adapter:
   restconsumer:
     timeout: 5000
-    url: "http://localhost:8001"
+    url: ${REST_CONSUMER_AUTH}
 resilience4j:
   circuitbreaker:
     instances:
