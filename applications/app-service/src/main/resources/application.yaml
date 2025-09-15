@@ -27,19 +27,23 @@ cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 adapters:
   r2dbc:
-    host: ${SPRING_DATASOURCE_HOST}
-    port: ${SPRING_DATASOURCE_PORT}
-    database: ${SPRING_DATASOURCE_DATABASE}
-    schema: ${SPRING_DATASOURCE_SCHEMA}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    host: "${SPRING_DATASOURCE_HOST}"
+    port: "${SPRING_DATASOURCE_PORT}"
+    database: "${SPRING_DATASOURCE_DATABASE}"
+    schema: "${SPRING_DATASOURCE_SCHEMA}"
+    username: "${SPRING_DATASOURCE_USERNAME}"
+    password: "${SPRING_DATASOURCE_PASSWORD}"
 jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION}
+  secret: "${JWT_SECRET}"
+  expiration: "${JWT_EXPIRATION}"
 adapter:
   restconsumer:
     timeout: 5000
-    url: ${REST_CONSUMER_AUTH}
+    url: "${REST_CONSUMER_AUTH}"
+  sqs:
+    region: "us-east-2"
+    queueUrl: "https://sqs.us-east-2.amazonaws.com/848049622847/loan-application-decision-events.fifo"
+    #endpoint: "http://localhost:4566"
 resilience4j:
   circuitbreaker:
     instances:

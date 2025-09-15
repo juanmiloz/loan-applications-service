@@ -13,7 +13,11 @@ public interface LoanApplicationRepository {
 
     Mono<LoanApplication> createLoanApplication(LoanApplication loanApplication);
 
+    Mono<LoanApplication> findById(UUID loanApplicationId);
+
     Mono<PageResult<LoanApplication>> findByStatusIdIn(Collection<UUID> statusIds, PageQuery pageQuery);
+
+    Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication);
 
     Mono<BigDecimal> getSumMonthlyApprovedByEmail(String email);
 

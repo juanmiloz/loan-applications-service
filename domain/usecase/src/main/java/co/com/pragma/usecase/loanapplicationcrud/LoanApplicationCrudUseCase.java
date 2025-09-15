@@ -3,10 +3,12 @@ package co.com.pragma.usecase.loanapplicationcrud;
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.error.LoanApplicationErrorCode;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
+import co.com.pragma.model.loanapplication.gateways.LoanDecisionEventPublisher;
 import co.com.pragma.model.loanapplication.gateways.UserClient;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.shared.gateway.AuthGateway;
 import co.com.pragma.model.shared.gateway.TransactionalGateway;
+import co.com.pragma.model.status.Status;
 import co.com.pragma.model.status.gateways.StatusRepository;
 import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
 import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseInterface;
@@ -16,6 +18,8 @@ import reactor.core.publisher.Mono;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import static co.com.pragma.model.shared.exception.DomainExceptionFactory.exceptionOf;
@@ -31,6 +35,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInt
     private final LoanTypeRepository loanTypeRepository;
     private final StatusRepository statusRepository;
     private final UserClient userClient;
+    private final LoanDecisionEventPublisher loanDecisionEventPublisher;
     private final AuthGateway authGateway;
 
     @Override
@@ -46,6 +51,25 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInt
                                         .flatMap(loanApplicationRepository::createLoanApplication)
                         )
                 );
+    }
+
+    @Override
+    public Mono<LoanApplication> updateLoanApplication(String newStatusName, UUID loanToUpdateId) {
+        return transactionalGateway.execute(
+                statusRepository.findByName(newStatusName)
+                        .flatMap(status -> attachNewStatus(loanToUpdateId, status))
+        );
+    }
+
+    private Mono<LoanApplication> attachNewStatus(UUID loanApplicationId, Status status) {
+        return loanApplicationRepository.findById(loanApplicationId)
+                .filter(la -> !Objects.equals(la.getStatusId(), status.getStatusId()))
+                .switchIfEmpty(Mono.error(exceptionOf(LoanApplicationErrorCode.STATUS_UNCHANGED)))
+                .map(la -> {
+                    la.setStatusId(status.getStatusId());
+                    return la;
+                }).flatMap(loanApplicationRepository::updateLoanApplication)
+                .flatMap(laSaved -> loanDecisionEventPublisher.publish(laSaved, status).thenReturn(laSaved));
     }
 
     private Mono<Void> ensureOwnerOrDeny(String email, String requesterUserId) {

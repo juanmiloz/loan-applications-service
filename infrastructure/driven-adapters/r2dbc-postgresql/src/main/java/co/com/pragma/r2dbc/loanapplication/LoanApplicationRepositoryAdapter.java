@@ -1,7 +1,9 @@
 package co.com.pragma.r2dbc.loanapplication;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.error.LoanApplicationErrorCode;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
+import co.com.pragma.model.shared.exception.DomainExceptionFactory;
 import co.com.pragma.model.shared.pagination.PageQuery;
 import co.com.pragma.model.shared.pagination.PageResult;
 import co.com.pragma.r2dbc.loanapplication.data.LoanApplicationDAO;
@@ -39,6 +41,16 @@ public class LoanApplicationRepositoryAdapter implements LoanApplicationReposito
     }
 
     @Override
+    public Mono<LoanApplication> findById(UUID loanApplicationId) {
+        return repository.findById(loanApplicationId)
+                .map(mapper::toLoanApplication)
+                .switchIfEmpty(Mono.error(
+                        DomainExceptionFactory.exceptionOf(LoanApplicationErrorCode.STATUS_NOT_FOUND)
+                )).doOnSuccess(loanType -> log.info(">>> Returning Status: {}", loanType))
+                .doOnError(ex -> log.error(">>> Error finding Status with id {}", loanApplicationId, ex));
+    }
+
+    @Override
     public Mono<PageResult<LoanApplication>> findByStatusIdIn(Collection<UUID> statusIds, PageQuery pageable) {
         Pageable pageableSpring = pageableMapper.toPageable(pageable);
         int page = Math.max(0, pageableSpring.getPageNumber());
@@ -50,6 +62,19 @@ public class LoanApplicationRepositoryAdapter implements LoanApplicationReposito
 
         return Mono.zip(dataMono, totalMono)
                 .map(t -> PageResult.of(t.getT1(), page, size, t.getT2()));
+    }
+
+    @Override
+    public Mono<LoanApplication> updateLoanApplication(LoanApplication loanApplication) {
+        return Mono.just(loanApplication)
+                .doOnSubscribe(s -> log.info(">>> Updating LoanApplication: {}", loanApplication))
+                .map(mapper::toLoanApplicationDAO)
+                .doOnNext(dao -> log.info(">>> Saving entity: {}", dao))
+                .flatMap(repository::save)
+                .doOnNext(savedDao -> log.info(">>> Saved entity: {}", savedDao))
+                .map(mapper::toLoanApplication)
+                .doOnSuccess(saved -> log.info(">>> Returning LoanApplication: {}", saved))
+                .doOnError(ex -> log.error(">>> Error updating LoanApplication id={} msg={}", loanApplication.getApplicationId(), ex.getMessage(), ex));
     }
 
     @Override

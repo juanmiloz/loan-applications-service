@@ -10,4 +10,6 @@ public interface ApplicationHandlerAPI {
 
     Mono<ServerResponse> listReviewableLoanApplications(ServerRequest request);
 
+    Mono<ServerResponse> updateRequestStatus(ServerRequest request);
+
 }
