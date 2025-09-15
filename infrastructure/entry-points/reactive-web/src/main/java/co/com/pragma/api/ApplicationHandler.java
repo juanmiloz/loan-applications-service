@@ -1,6 +1,7 @@
 package co.com.pragma.api;
 
 import co.com.pragma.api.data.request.CreateLoanApplicationDTO;
+import co.com.pragma.api.data.request.UpdateLoanStatus;
 import co.com.pragma.api.interfaces.ApplicationHandlerAPI;
 import co.com.pragma.api.mapper.LoanApplicationMapper;
 import co.com.pragma.model.shared.pagination.PageQuery;
@@ -15,6 +16,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -47,6 +49,16 @@ public class ApplicationHandler implements ApplicationHandlerAPI {
         PageQuery pageQuery = new PageQuery(page, size);
 
         return reviewableUseCase.listReviewableLoanApplications(pageQuery)
+                .flatMap(res -> ServerResponse.ok().bodyValue(res));
+    }
+
+    @Override
+    public Mono<ServerResponse> updateRequestStatus(ServerRequest request) {
+        UUID loanApplicationId = UUID.fromString(request.pathVariable("id"));
+
+        return request.bodyToMono(UpdateLoanStatus.class)
+                .flatMap(updateLoanStatus -> useCase.updateLoanApplication(updateLoanStatus.newStatus(), loanApplicationId))
+                .map(mapper::toDTO)
                 .flatMap(res -> ServerResponse.ok().bodyValue(res));
     }
 }

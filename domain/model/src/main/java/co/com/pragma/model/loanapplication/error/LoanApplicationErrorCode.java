@@ -14,7 +14,9 @@ public enum LoanApplicationErrorCode implements ErrorCode {
     INVALID_AMOUNT_RANGE("LAP_004", 400, "Amount {0} is out of allowed range. It must be between {1} and {2}."),
     INVALID_TERM_MONTHS("LAP_005", 400, "Term months must be greater than 0, but was {0}."),
     INVALID_EMAIL_FORMAT("LAP_006", 400, "Email ''{0}'' does not have a valid format."),
-    AUTHORIZATION_FAILED("LAP-007", 403,"Not authorized to do this operation.");
+    AUTHORIZATION_FAILED("LAP-007", 403,"Not authorized to do this operation."),
+    STATUS_NOT_FOUND("LAP_008", 404, "Status not found with id {0}"),
+    STATUS_UNCHANGED("LAP_009", 500, "Status was not updated because it already has the same value.Y ");
 
     private final String appCode;
     private final int httpCode;
