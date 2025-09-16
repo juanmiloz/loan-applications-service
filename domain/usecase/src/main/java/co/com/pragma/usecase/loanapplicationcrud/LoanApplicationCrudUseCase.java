@@ -11,9 +11,10 @@ import co.com.pragma.model.shared.gateway.TransactionalGateway;
 import co.com.pragma.model.status.Status;
 import co.com.pragma.model.status.gateways.StatusRepository;
 import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
-import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseInterface;
+import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseContract;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -25,10 +26,12 @@ import java.util.regex.Pattern;
 import static co.com.pragma.model.shared.exception.DomainExceptionFactory.exceptionOf;
 
 @RequiredArgsConstructor
-public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInterface {
+public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseContract {
 
     private static final Pattern EMAIL_RX = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final String DEFAULT_LOAN_APPLICATION_NAME = "PENDING";
+    private final static BigDecimal MAX_BORROWING_PERCENTAGE = new BigDecimal("0.35");
+    private final static BigDecimal MONTHS_QUANTITY = new BigDecimal("12");
 
     private final TransactionalGateway transactionalGateway;
     private final LoanApplicationRepository loanApplicationRepository;
@@ -37,6 +40,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInt
     private final UserClient userClient;
     private final LoanDecisionEventPublisher loanDecisionEventPublisher;
     private final AuthGateway authGateway;
+
 
     @Override
     public Mono<LoanApplication> createLoanApplication(LoanApplication loanApplication) {
@@ -59,6 +63,47 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseInt
                 statusRepository.findByName(newStatusName)
                         .flatMap(status -> attachNewStatus(loanToUpdateId, status))
         );
+    }
+
+    private Mono<Void> calculateDebtCapacity(LoanApplication loanApplication) {
+        return Mono.zip(calculateDebtCapacity(loanApplication), calculateNewLoanInstallment(loanApplication))
+                .flatMap(tuple -> {
+
+                    return Mono.empty();
+                });
+    }
+    
+    private Mono<BigDecimal> calculateAvailableCapacity(LoanApplication loanApplication) {
+        Mono<BigDecimal> borrowingCapacity = calculateBorrowingCapacity(loanApplication.getEmail());
+        Mono<BigDecimal> currentMonthlyDebt = loanApplicationRepository.getSumMonthlyApprovedByEmail(loanApplication.getEmail()).defaultIfEmpty(BigDecimal.ZERO);
+
+        return Mono.zip(borrowingCapacity, currentMonthlyDebt)
+                .map(tuple -> {
+                    BigDecimal maxCapacity = tuple.getT1();
+                    BigDecimal currentCapacity = tuple.getT2();
+                    BigDecimal available = maxCapacity.subtract(currentCapacity);
+
+                    return available;
+                });
+    }
+
+    private Mono<BigDecimal> calculateBorrowingCapacity(String email) {
+        return userClient.getClientByEmail(email)
+                .map(user -> BigDecimal.valueOf(user.baseSalary()))
+                .map(salary -> salary.multiply(MAX_BORROWING_PERCENTAGE));
+    }
+
+
+    private Mono<BigDecimal> calculateNewLoanInstallment(LoanApplication loanApplication) {
+        return loanTypeRepository.findById(loanApplication.getLoanTypeId())
+                .map(loanType -> {
+                    BigDecimal monthlyInterest = loanType.getInterestRate().divide(MONTHS_QUANTITY);
+                    BigDecimal monthsTerm = new BigDecimal(loanApplication.getTermMonths());
+                    BigDecimal amount = loanApplication.getAmount();
+                    BigDecimal leftEquation = amount.multiply(BigDecimal.ONE.add(monthlyInterest)).multiply(monthsTerm);
+                    BigDecimal rightEquation = BigDecimal.ONE.multiply(monthlyInterest).multiply(BigDecimal.ONE.add(monthlyInterest)).multiply(monthsTerm);
+                    return leftEquation.subtract(rightEquation);
+                });
     }
 
     private Mono<LoanApplication> attachNewStatus(UUID loanApplicationId, Status status) {
