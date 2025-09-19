@@ -1,11 +1,10 @@
 package co.com.pragma.api;
 
+import co.com.pragma.api.api.ApplicationHandlerAPI;
 import co.com.pragma.api.data.request.CreateLoanApplicationDTO;
 import co.com.pragma.api.data.request.UpdateLoanStatus;
-import co.com.pragma.api.api.ApplicationHandlerAPI;
 import co.com.pragma.api.mapper.LoanApplicationMapper;
 import co.com.pragma.model.shared.pagination.PageQuery;
-import co.com.pragma.usecase.calculatedebtcapacity.CalculateDebtCapacityUseCase;
 import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseContract;
 import co.com.pragma.usecase.reviewableloanapplications.contract.ReviewableLoanApplicationUseCaseContract;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ import java.util.UUID;
 public class ApplicationHandler implements ApplicationHandlerAPI {
 
     private final LoanApplicationCrudUseCaseContract useCaseCrud;
-    private final CalculateDebtCapacityUseCase calculateDebtCapacity;
     private final ReviewableLoanApplicationUseCaseContract reviewableUseCase;
     private final LoanApplicationMapper mapper;
 

@@ -1,12 +1,12 @@
-package co.com.pragma.sqs.sender;
+package co.com.pragma.sqs.sender.loandecisionsqs;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.gateways.LoanDecisionEventPublisher;
 import co.com.pragma.model.status.Status;
-import co.com.pragma.sqs.sender.config.SQSSenderProperties;
-import co.com.pragma.sqs.sender.event.LoanDecisionEvent;
-import co.com.pragma.sqs.sender.mapper.LoanDecisionEventMapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import co.com.pragma.sqs.sender.config.SQSProperties;
+import co.com.pragma.sqs.sender.loandecisionsqs.event.LoanDecisionEvent;
+import co.com.pragma.sqs.sender.loandecisionsqs.mapper.LoanDecisionEventMapper;
+import co.com.pragma.sqs.sender.shared.helper.JsonHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -19,12 +19,12 @@ import java.util.UUID;
 @Service
 @Log4j2
 @RequiredArgsConstructor
-public class SQSSender implements LoanDecisionEventPublisher {
+public class SqsLoanApplicationDecisionEvents implements LoanDecisionEventPublisher {
 
-    private final SQSSenderProperties properties;
+    private final SQSProperties properties;
     private final SqsAsyncClient client;
     private final LoanDecisionEventMapper mapper;
-    private final ObjectMapper objectMapper;
+    private final JsonHelper jsonHelper;
 
     @Override
     public Mono<String> publish(LoanApplication loanApplication, Status status) {
@@ -40,21 +40,13 @@ public class SQSSender implements LoanDecisionEventPublisher {
 
     private SendMessageRequest buildDecisionRequest(LoanDecisionEvent loanDecisionEvent) {
         String groupId = UUID.randomUUID().toString();
-        String messageId = groupId+":"+System.currentTimeMillis();
+        String messageId = groupId + ":" + System.currentTimeMillis();
 
         return SendMessageRequest.builder()
-                .queueUrl(properties.queueUrl())
-                .messageBody(parseObjectToJson(loanDecisionEvent))
+                .queueUrl(properties.queueUrl()+"/loan-application-decision-events.fifo")
+                .messageBody(jsonHelper.toJson(loanDecisionEvent))
                 .messageGroupId(groupId)
                 .messageDeduplicationId(messageId)
                 .build();
-    }
-
-    private String parseObjectToJson(Object object) {
-        try {
-            return objectMapper.writeValueAsString(object);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new IllegalStateException("Error serializando a JSON", e);
-        }
     }
 }

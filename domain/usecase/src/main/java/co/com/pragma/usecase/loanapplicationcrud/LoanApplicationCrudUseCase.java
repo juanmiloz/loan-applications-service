@@ -1,10 +1,14 @@
 package co.com.pragma.usecase.loanapplicationcrud;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
+import co.com.pragma.model.loanapplication.dto.request.UserDTO;
+import co.com.pragma.model.loanapplication.dto.response.DebtCapacityAutomaticDTO;
 import co.com.pragma.model.loanapplication.error.LoanApplicationErrorCode;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
 import co.com.pragma.model.loanapplication.gateways.LoanDecisionEventPublisher;
+import co.com.pragma.model.loanapplication.gateways.RequestDebtCapacityEventPublisher;
 import co.com.pragma.model.loanapplication.gateways.UserClient;
+import co.com.pragma.model.loantype.LoanType;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.shared.gateway.AuthGateway;
 import co.com.pragma.model.shared.gateway.TransactionalGateway;
@@ -14,7 +18,6 @@ import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
 import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseContract;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -30,8 +33,6 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
 
     private static final Pattern EMAIL_RX = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final String DEFAULT_LOAN_APPLICATION_NAME = "PENDING";
-    private final static BigDecimal MAX_BORROWING_PERCENTAGE = new BigDecimal("0.35");
-    private final static BigDecimal MONTHS_QUANTITY = new BigDecimal("12");
 
     private final TransactionalGateway transactionalGateway;
     private final LoanApplicationRepository loanApplicationRepository;
@@ -39,6 +40,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
     private final StatusRepository statusRepository;
     private final UserClient userClient;
     private final LoanDecisionEventPublisher loanDecisionEventPublisher;
+    private final RequestDebtCapacityEventPublisher requestDebtCapacityEventPublisher;
     private final AuthGateway authGateway;
 
 
@@ -53,6 +55,10 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
                                         .flatMap(this::attachPendingStatus)
                                         .map(this::stampCreatedAt)
                                         .flatMap(loanApplicationRepository::createLoanApplication)
+                                        .flatMap(saved -> buildDebtCapacityAutomaticDTO(saved)
+                                                .flatMap(requestDebtCapacityEventPublisher::publish)
+                                                .thenReturn(saved)
+                                        )
                         )
                 );
     }
@@ -65,45 +71,21 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
         );
     }
 
-    private Mono<Void> calculateDebtCapacity(LoanApplication loanApplication) {
-        return Mono.zip(calculateDebtCapacity(loanApplication), calculateNewLoanInstallment(loanApplication))
-                .flatMap(tuple -> {
-
-                    return Mono.empty();
-                });
-    }
-    
-    private Mono<BigDecimal> calculateAvailableCapacity(LoanApplication loanApplication) {
-        Mono<BigDecimal> borrowingCapacity = calculateBorrowingCapacity(loanApplication.getEmail());
+    private Mono<DebtCapacityAutomaticDTO> buildDebtCapacityAutomaticDTO(LoanApplication loanApplication) {
+        Mono<LoanType> loanTypeMono = loanTypeRepository.findById(loanApplication.getLoanTypeId());
         Mono<BigDecimal> currentMonthlyDebt = loanApplicationRepository.getSumMonthlyApprovedByEmail(loanApplication.getEmail()).defaultIfEmpty(BigDecimal.ZERO);
+        Mono<UserDTO> userDTOMono = userClient.getClientByEmail(loanApplication.getEmail());
 
-        return Mono.zip(borrowingCapacity, currentMonthlyDebt)
-                .map(tuple -> {
-                    BigDecimal maxCapacity = tuple.getT1();
-                    BigDecimal currentCapacity = tuple.getT2();
-                    BigDecimal available = maxCapacity.subtract(currentCapacity);
-
-                    return available;
-                });
-    }
-
-    private Mono<BigDecimal> calculateBorrowingCapacity(String email) {
-        return userClient.getClientByEmail(email)
-                .map(user -> BigDecimal.valueOf(user.baseSalary()))
-                .map(salary -> salary.multiply(MAX_BORROWING_PERCENTAGE));
-    }
-
-
-    private Mono<BigDecimal> calculateNewLoanInstallment(LoanApplication loanApplication) {
-        return loanTypeRepository.findById(loanApplication.getLoanTypeId())
-                .map(loanType -> {
-                    BigDecimal monthlyInterest = loanType.getInterestRate().divide(MONTHS_QUANTITY);
-                    BigDecimal monthsTerm = new BigDecimal(loanApplication.getTermMonths());
-                    BigDecimal amount = loanApplication.getAmount();
-                    BigDecimal leftEquation = amount.multiply(BigDecimal.ONE.add(monthlyInterest)).multiply(monthsTerm);
-                    BigDecimal rightEquation = BigDecimal.ONE.multiply(monthlyInterest).multiply(BigDecimal.ONE.add(monthlyInterest)).multiply(monthsTerm);
-                    return leftEquation.subtract(rightEquation);
-                });
+        return Mono.zip(loanTypeMono, currentMonthlyDebt, userDTOMono)
+                .map(tuple2 -> new DebtCapacityAutomaticDTO(
+                        loanApplication.getApplicationId(),
+                        loanApplication.getEmail(),
+                        BigDecimal.valueOf(tuple2.getT3().baseSalary()),
+                        tuple2.getT2(),
+                        tuple2.getT1().getInterestRate(),
+                        BigDecimal.valueOf(loanApplication.getTermMonths()),
+                        loanApplication.getAmount()
+                ));
     }
 
     private Mono<LoanApplication> attachNewStatus(UUID loanApplicationId, Status status) {

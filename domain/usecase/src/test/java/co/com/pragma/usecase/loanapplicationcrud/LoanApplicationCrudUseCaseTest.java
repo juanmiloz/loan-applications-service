@@ -3,6 +3,8 @@ package co.com.pragma.usecase.loanapplicationcrud;
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.dto.request.UserDTO;
 import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
+import co.com.pragma.model.loanapplication.gateways.LoanDecisionEventPublisher;
+import co.com.pragma.model.loanapplication.gateways.RequestDebtCapacityEventPublisher;
 import co.com.pragma.model.loanapplication.gateways.UserClient;
 import co.com.pragma.model.loantype.LoanType;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
@@ -38,6 +40,9 @@ class LoanApplicationCrudUseCaseTest {
     @Mock private TransactionalGateway transactionalGateway;
     @Mock private AuthGateway authGateway;
     @Mock private UserClient userClient;
+    @Mock private LoanDecisionEventPublisher loanDecisionEventPublisher;
+    @Mock private RequestDebtCapacityEventPublisher requestDebtCapacityEventPublisher;
+
 
     @InjectMocks
     private LoanApplicationCrudUseCase loanApplicationCrudUseCase;
@@ -56,8 +61,9 @@ class LoanApplicationCrudUseCaseTest {
         loanTypeId = UUID.randomUUID();
         loanType = LoanType.builder()
                 .loanTypeId(loanTypeId)
-                .minAmount(new java.math.BigDecimal("1000"))
-                .maxAmount(new java.math.BigDecimal("100000"))
+                .minAmount(new BigDecimal("1000"))
+                .maxAmount(new BigDecimal("100000"))
+                .interestRate(new BigDecimal("0.02"))
                 .build();
 
         pendingStatus = Status.builder()
@@ -65,11 +71,9 @@ class LoanApplicationCrudUseCaseTest {
                 .name("PENDING")
                 .build();
 
-        // --- Transactional: deja pasar el Mono tal cual ---
         when(transactionalGateway.execute(any(Mono.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        // --- Stubs de repos ---
         when(loanTypeRepository.findById(loanTypeId))
                 .thenReturn(Mono.just(loanType));
         when(statusRepository.findByName("PENDING"))
@@ -77,17 +81,21 @@ class LoanApplicationCrudUseCaseTest {
         when(loanApplicationRepository.createLoanApplication(any(LoanApplication.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
 
-        // --- Auth por defecto OK ---
+        when(loanApplicationRepository.getSumMonthlyApprovedByEmail(anyString()))
+                .thenReturn(Mono.empty());
+
         when(authGateway.currentUserId())
                 .thenReturn(Mono.just(REQUESTER_ID));
 
-        // --- Dueño del email: UUID (¡importante para que no falle por AUTH!) ---
-        UserDTO user = mock(UserDTO.class); // <-- ajusta tipo/paquete
-        when(user.userId()).thenReturn(REQUESTER_UUID); // el usecase hace String.valueOf(user.userId())
-
-        // getClientByEmail debe responder también a null para evitar NPE en tests con email null
+        UserDTO user = org.mockito.Mockito.mock(UserDTO.class);
+        when(user.userId()).thenReturn(REQUESTER_UUID);
+        when(user.baseSalary()).thenReturn(2_000_000.0);
         when(userClient.getClientByEmail(org.mockito.ArgumentMatchers.nullable(String.class)))
                 .thenReturn(Mono.just(user));
+        when(requestDebtCapacityEventPublisher.publish(any()))
+                .thenReturn(Mono.empty());
+        when(loanDecisionEventPublisher.publish(any(), any()))
+                .thenReturn(Mono.empty());
     }
 
     @Test
@@ -105,7 +113,7 @@ class LoanApplicationCrudUseCaseTest {
                 )
                 .verifyComplete();
 
-        verify(loanTypeRepository).findById(loanTypeId);
+        verify(loanTypeRepository, times(2)).findById(loanTypeId);
         verify(statusRepository).findByName("PENDING");
         verify(loanApplicationRepository).createLoanApplication(any(LoanApplication.class));
         verify(transactionalGateway).execute(any(Mono.class));
@@ -282,4 +290,117 @@ class LoanApplicationCrudUseCaseTest {
             verify(loanApplicationRepository, never()).createLoanApplication(any());
         }
     }
+
+    @Nested
+    class UpdateLoanApplication {
+
+        private UUID appId;
+        private Status approvedStatus;
+        private LoanApplication existing;
+
+        @BeforeEach
+        void localSetup() {
+            appId = UUID.randomUUID();
+
+            // status actual = PENDING (ya existe en setup global)
+            // status nuevo = APPROVED
+            approvedStatus = Status.builder()
+                    .statusId(UUID.randomUUID())
+                    .name("APPROVED")
+                    .build();
+
+            existing = LoanApplication.builder()
+                    .applicationId(appId)
+                    .loanTypeId(loanTypeId)
+                    .statusId(pendingStatus.getStatusId()) // estado actual distinto al nuevo
+                    .email(EMAIL)
+                    .amount(new BigDecimal("10000"))
+                    .termMonths(12)
+                    .build();
+
+            // findById existente
+            when(loanApplicationRepository.findById(appId)).thenReturn(Mono.just(existing));
+
+            // update devuelve lo que le pasen
+            when(loanApplicationRepository.updateLoanApplication(any(LoanApplication.class)))
+                    .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+
+            // statusRepository para "APPROVED"
+            when(statusRepository.findByName("APPROVED")).thenReturn(Mono.just(approvedStatus));
+        }
+
+        @Test
+        @DisplayName("updateLoanApplication: cambia el estado y publica el evento")
+        void update_success_changesStatus_andPublishes() {
+            StepVerifier.create(loanApplicationCrudUseCase.updateLoanApplication("APPROVED", appId))
+                    .expectNextMatches(saved ->
+                            saved.getApplicationId().equals(appId) &&
+                                    saved.getStatusId().equals(approvedStatus.getStatusId())
+                    )
+                    .verifyComplete();
+
+            // Se llamó a leer status
+            verify(statusRepository).findByName("APPROVED");
+
+            // Se leyó la entidad y se actualizó
+            verify(loanApplicationRepository).findById(appId);
+            verify(loanApplicationRepository).updateLoanApplication(any(LoanApplication.class));
+
+            // Se publicó el evento de decisión
+            verify(loanDecisionEventPublisher).publish(any(LoanApplication.class), eq(approvedStatus));
+
+            // Se ejecutó dentro de la transacción
+            verify(transactionalGateway).execute(any(Mono.class));
+        }
+
+        @Test
+        @DisplayName("updateLoanApplication: STATUS_UNCHANGED si el estado es el mismo")
+        void update_statusUnchanged_throws() {
+            // nuevo estado = PENDING (igual al actual)
+            when(statusRepository.findByName("PENDING")).thenReturn(Mono.just(pendingStatus));
+
+            StepVerifier.create(loanApplicationCrudUseCase.updateLoanApplication("PENDING", appId))
+                    .expectErrorSatisfies(err -> {
+                        // Es DomainException, el código específico ya lo valida tu fábrica
+                        // Aquí basta con que sea DomainException
+                        assert err instanceof co.com.pragma.model.shared.exception.DomainException;
+                    })
+                    .verify();
+
+            verify(loanApplicationRepository).findById(appId);
+            verify(loanApplicationRepository, never()).updateLoanApplication(any());
+            verify(loanDecisionEventPublisher, never()).publish(any(), any());
+        }
+
+        @Test
+        @DisplayName("updateLoanApplication: status no encontrado -> cadena termina vacía")
+        void update_statusNotFound_completesEmpty() {
+            when(statusRepository.findByName("NOT_EXISTS")).thenReturn(Mono.empty());
+
+            StepVerifier.create(loanApplicationCrudUseCase.updateLoanApplication("NOT_EXISTS", appId))
+                    .verifyComplete();
+
+            verify(loanApplicationRepository, never()).findById(any());
+            verify(loanApplicationRepository, never()).updateLoanApplication(any());
+            verify(loanDecisionEventPublisher, never()).publish(any(), any());
+        }
+
+        @Test
+        @DisplayName("updateLoanApplication: loan no encontrado -> STATUS_UNCHANGED (por lógica actual)")
+        void update_loanNotFound_errorsStatusUnchanged() {
+            when(loanApplicationRepository.findById(appId)).thenReturn(Mono.empty()); // no existe loan
+            when(statusRepository.findByName("APPROVED")).thenReturn(Mono.just(approvedStatus));
+
+            StepVerifier.create(loanApplicationCrudUseCase.updateLoanApplication("APPROVED", appId))
+                    .expectErrorSatisfies(err -> {
+                        assert err instanceof co.com.pragma.model.shared.exception.DomainException;
+                    })
+                    .verify();
+
+            verify(loanApplicationRepository).findById(appId);
+            verify(loanApplicationRepository, never()).updateLoanApplication(any());
+            verify(loanDecisionEventPublisher, never()).publish(any(), any());
+        }
+    }
+
 }
