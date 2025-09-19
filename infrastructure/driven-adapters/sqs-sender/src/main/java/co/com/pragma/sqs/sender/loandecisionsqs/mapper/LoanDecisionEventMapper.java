@@ -1,8 +1,8 @@
-package co.com.pragma.sqs.sender.mapper;
+package co.com.pragma.sqs.sender.loandecisionsqs.mapper;
 
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.status.Status;
-import co.com.pragma.sqs.sender.event.LoanDecisionEvent;
+import co.com.pragma.sqs.sender.loandecisionsqs.event.LoanDecisionEvent;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 

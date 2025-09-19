@@ -1,6 +1,6 @@
 package co.com.pragma.api;
 
-import co.com.pragma.api.interfaces.ApplicationHandlerAPI;
+import co.com.pragma.api.api.ApplicationHandlerAPI;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -21,6 +21,6 @@ public class RouterRest {
                         .GET("", handler::listReviewableLoanApplications)
                         .PUT("/{id}", accept(MediaType.APPLICATION_JSON).and(contentType(MediaType.APPLICATION_JSON)), handler::updateRequestStatus)
                         .build()
-        );
+        ).andRoute(POST("/api/v1/calculate-debt-capacity"),handler::calculateDebtCapacity);
     }
 }

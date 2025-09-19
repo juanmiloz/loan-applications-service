@@ -32,18 +32,18 @@ public class SecurityConfig {
     public SecurityWebFilterChain filterChain(ServerHttpSecurity http, JwtFilter jwtFilter) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((exchange, e) ->
-                                Mono.fromRunnable(() ->
-                                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED)
-                                )
-                        )
-                        .accessDeniedHandler((exchange, e) ->
-                                Mono.fromRunnable(() ->
-                                        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN)
-                                )
-                        )
-                )
+//                .exceptionHandling(ex -> ex
+//                        .authenticationEntryPoint((exchange, e) ->
+//                                Mono.fromRunnable(() ->
+//                                        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED)
+//                                )
+//                        )
+//                        .accessDeniedHandler((exchange, e) ->
+//                                Mono.fromRunnable(() ->
+//                                        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN)
+//                                )
+//                        )
+//                )
                 .addFilterAfter(jwtFilter, SecurityWebFiltersOrder.FIRST)
                 .securityContextRepository(securityContextRepository)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

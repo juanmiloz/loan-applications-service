@@ -1,4 +1,4 @@
-package co.com.pragma.sqs.sender.event;
+package co.com.pragma.sqs.sender.loandecisionsqs.event;
 
 import java.util.UUID;
 

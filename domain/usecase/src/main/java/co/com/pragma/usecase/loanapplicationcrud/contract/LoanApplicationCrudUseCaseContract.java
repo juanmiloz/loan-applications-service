@@ -5,7 +5,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-public interface LoanApplicationCrudUseCaseInterface {
+public interface LoanApplicationCrudUseCaseContract {
 
     Mono<LoanApplication> createLoanApplication(LoanApplication loanApplication);
 

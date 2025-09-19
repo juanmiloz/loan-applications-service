@@ -28,7 +28,7 @@ public class StatusRepositoryAdapter implements StatusRepository {
                                 DomainExceptionFactory.exceptionOf(StatusErrorCode.STATUS_NOT_FOUND_BY_NAME, name)
                         )
                 ).map(mapper::toStatus)
-                .doOnSuccess(loanType -> log.info(">>> Returning Status: {}", loanType))
+                .doOnSuccess(loanType -> log.info(">>> Returning Status: {} with name {}", loanType.getStatusId(), loanType.getName()))
                 .doOnError(ex -> log.error(">>> Error finding Status with name {}", name, ex));
     }
 

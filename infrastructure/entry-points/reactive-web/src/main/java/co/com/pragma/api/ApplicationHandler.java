@@ -1,11 +1,11 @@
 package co.com.pragma.api;
 
+import co.com.pragma.api.api.ApplicationHandlerAPI;
 import co.com.pragma.api.data.request.CreateLoanApplicationDTO;
 import co.com.pragma.api.data.request.UpdateLoanStatus;
-import co.com.pragma.api.interfaces.ApplicationHandlerAPI;
 import co.com.pragma.api.mapper.LoanApplicationMapper;
 import co.com.pragma.model.shared.pagination.PageQuery;
-import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseInterface;
+import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseContract;
 import co.com.pragma.usecase.reviewableloanapplications.contract.ReviewableLoanApplicationUseCaseContract;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ import java.util.UUID;
 @Slf4j
 public class ApplicationHandler implements ApplicationHandlerAPI {
 
-    private final LoanApplicationCrudUseCaseInterface useCase;
+    private final LoanApplicationCrudUseCaseContract useCaseCrud;
     private final ReviewableLoanApplicationUseCaseContract reviewableUseCase;
     private final LoanApplicationMapper mapper;
 
@@ -35,7 +35,7 @@ public class ApplicationHandler implements ApplicationHandlerAPI {
                 .doOnNext(dto -> log.debug("createLoanApplication:payload-received dto=[masked]"))
                 .map(mapper::toEntity)
                 .doOnNext(entity -> log.debug("createLoanApplication:mapped-to-entity entityClass={}", entity.getClass().getSimpleName()))
-                .flatMap(useCase::createLoanApplication)
+                .flatMap(useCaseCrud::createLoanApplication)
                 .doOnNext(created -> log.info("createLoanApplication:usecase-success loanApplicationId={}", created.getApplicationId()))
                 .map(mapper::toDTO)
                 .flatMap(res -> ServerResponse.created(URI.create("/api/v1/loan-application/" + res.applicationId())).bodyValue(res))
@@ -57,8 +57,13 @@ public class ApplicationHandler implements ApplicationHandlerAPI {
         UUID loanApplicationId = UUID.fromString(request.pathVariable("id"));
 
         return request.bodyToMono(UpdateLoanStatus.class)
-                .flatMap(updateLoanStatus -> useCase.updateLoanApplication(updateLoanStatus.newStatus(), loanApplicationId))
+                .flatMap(updateLoanStatus -> useCaseCrud.updateLoanApplication(updateLoanStatus.newStatus(), loanApplicationId))
                 .map(mapper::toDTO)
                 .flatMap(res -> ServerResponse.ok().bodyValue(res));
+    }
+
+    @Override
+    public Mono<ServerResponse> calculateDebtCapacity(ServerRequest request) {
+        return null;
     }
 }

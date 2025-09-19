@@ -47,7 +47,7 @@ public class LoanApplicationRepositoryAdapter implements LoanApplicationReposito
                 .switchIfEmpty(Mono.error(
                         DomainExceptionFactory.exceptionOf(LoanApplicationErrorCode.STATUS_NOT_FOUND)
                 )).doOnSuccess(loanType -> log.info(">>> Returning Status: {}", loanType))
-                .doOnError(ex -> log.error(">>> Error finding Status with id {}", loanApplicationId, ex));
+                .doOnError(ex -> log.error(">>> Error finding loan application with id {}", loanApplicationId, ex));
     }
 
     @Override

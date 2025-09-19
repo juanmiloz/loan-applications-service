@@ -15,6 +15,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleDomain(DomainException ex) {
         HttpStatus status = HttpStatus.valueOf(ex.getHttpCode());
         return ResponseEntity.status(status).body(Map.of(
+                "appCode",  ex.getAppCode(),
                 "httpCode", ex.getHttpCode(),
                 "message", ex.getMessage()
         ));
