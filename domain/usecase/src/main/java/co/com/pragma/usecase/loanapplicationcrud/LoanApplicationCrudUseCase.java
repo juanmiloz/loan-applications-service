@@ -3,11 +3,9 @@ package co.com.pragma.usecase.loanapplicationcrud;
 import co.com.pragma.model.loanapplication.LoanApplication;
 import co.com.pragma.model.loanapplication.dto.request.UserDTO;
 import co.com.pragma.model.loanapplication.dto.response.DebtCapacityAutomaticDTO;
+import co.com.pragma.model.loanapplication.dto.response.MetricApprovedDTO;
 import co.com.pragma.model.loanapplication.error.LoanApplicationErrorCode;
-import co.com.pragma.model.loanapplication.gateways.LoanApplicationRepository;
-import co.com.pragma.model.loanapplication.gateways.LoanDecisionEventPublisher;
-import co.com.pragma.model.loanapplication.gateways.RequestDebtCapacityEventPublisher;
-import co.com.pragma.model.loanapplication.gateways.UserClient;
+import co.com.pragma.model.loanapplication.gateways.*;
 import co.com.pragma.model.loantype.LoanType;
 import co.com.pragma.model.loantype.gateways.LoanTypeRepository;
 import co.com.pragma.model.shared.gateway.AuthGateway;
@@ -18,6 +16,8 @@ import co.com.pragma.usecase.loanapplicationcrud.helper.ValidationHelper;
 import co.com.pragma.usecase.loanapplicationcrud.contract.LoanApplicationCrudUseCaseContract;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple3;
+import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -33,6 +33,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
 
     private static final Pattern EMAIL_RX = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final String DEFAULT_LOAN_APPLICATION_NAME = "PENDING";
+    private static final String APPROVED = "APPROVED";
 
     private final TransactionalGateway transactionalGateway;
     private final LoanApplicationRepository loanApplicationRepository;
@@ -41,6 +42,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
     private final UserClient userClient;
     private final LoanDecisionEventPublisher loanDecisionEventPublisher;
     private final RequestDebtCapacityEventPublisher requestDebtCapacityEventPublisher;
+    private final MetricApprovedEventPublisher metricApprovedEventPublisher;
     private final AuthGateway authGateway;
 
 
@@ -68,6 +70,7 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
         return transactionalGateway.execute(
                 statusRepository.findByName(newStatusName)
                         .flatMap(status -> attachNewStatus(loanToUpdateId, status))
+                        .flatMap(this::emitMetricApprovedEvent)
         );
     }
 
@@ -88,15 +91,38 @@ public class LoanApplicationCrudUseCase implements LoanApplicationCrudUseCaseCon
                 ));
     }
 
-    private Mono<LoanApplication> attachNewStatus(UUID loanApplicationId, Status status) {
+    private Mono<LoanApplication> emitMetricApprovedEvent(Tuple3<LoanApplication, Status, Status> tuple) {
+        LoanApplication la = tuple.getT1();
+        String oldName = tuple.getT2().getName();
+        String newName = tuple.getT3().getName();
+
+        MetricApprovedDTO metric = null;
+        if (!APPROVED.equalsIgnoreCase(oldName) && APPROVED.equalsIgnoreCase(newName)) {
+            metric = new MetricApprovedDTO(1, la.getAmount());
+        } else if (APPROVED.equalsIgnoreCase(oldName) && !APPROVED.equalsIgnoreCase(newName)) {
+            metric = new MetricApprovedDTO(-1, la.getAmount().negate());
+        }
+
+        return metric != null
+                ? metricApprovedEventPublisher.publish(metric).thenReturn(la)
+                : Mono.just(la);
+    }
+
+    private Mono<Tuple3<LoanApplication, Status, Status>> attachNewStatus(UUID loanApplicationId, Status status) {
         return loanApplicationRepository.findById(loanApplicationId)
                 .filter(la -> !Objects.equals(la.getStatusId(), status.getStatusId()))
                 .switchIfEmpty(Mono.error(exceptionOf(LoanApplicationErrorCode.STATUS_UNCHANGED)))
-                .map(la -> {
-                    la.setStatusId(status.getStatusId());
-                    return la;
-                }).flatMap(loanApplicationRepository::updateLoanApplication)
-                .flatMap(laSaved -> loanDecisionEventPublisher.publish(laSaved, status).thenReturn(laSaved));
+                .flatMap(existing ->
+                        statusRepository.findById(existing.getStatusId())
+                                .map(oldStatus -> {
+                                    existing.setStatusId(status.getStatusId());
+                                    return Tuples.of(existing, oldStatus, status);
+                                })
+                ).flatMap(tuple -> loanApplicationRepository.updateLoanApplication(tuple.getT1())
+                        .flatMap(laSaved -> loanDecisionEventPublisher.publish(laSaved, tuple.getT3())
+                                .thenReturn(Tuples.of(laSaved, tuple.getT2(), tuple.getT3()))
+                        )
+                );
     }
 
     private Mono<Void> ensureOwnerOrDeny(String email, String requesterUserId) {
